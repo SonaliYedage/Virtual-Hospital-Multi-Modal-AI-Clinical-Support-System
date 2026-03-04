@@ -8,8 +8,8 @@ matplotlib
 pydantic
 python-multipart
 pillow
-tensorflow-cpu
 joblib
 streamlit
 tensorflow
 requests
+
