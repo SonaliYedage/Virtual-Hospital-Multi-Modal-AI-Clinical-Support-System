@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pandas
+xgboost
+scikit-learn
+shap
+matplotlib
+pydantic
+python-multipart
+pillow
+tensorflow-cpu
+joblib
+streamlit
+requests
