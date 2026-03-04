@@ -11,4 +11,5 @@ pillow
 tensorflow-cpu
 joblib
 streamlit
+tensorflow
 requests
