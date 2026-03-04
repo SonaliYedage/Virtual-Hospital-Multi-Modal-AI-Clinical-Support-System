@@ -1,3 +1,5 @@
+import os
+import urllib.request
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel
 import pandas as pd
@@ -32,6 +34,15 @@ except Exception as e:
     print(f" Cardiology Model not found: {e}")
 
 # Load Pulmonology (Lungs) Vision Model
+    LUNGS_MODEL_PATH = "models/densenet_lungs.h5"
+# PASTE YOUR COPIED GITHUB RELEASE LINK INSIDE THESE QUOTES:
+LUNGS_MODEL_URL = "https://github.com/SonaliYedage/Virtual-Hospital-Multi-Modal-AI-Clinical-Support-System/releases/download/v1.0/densenet_lungs.h5"
+
+if not os.path.exists(LUNGS_MODEL_PATH):
+    print("Downloading Pulmonology Vision Model from cloud... please wait.")
+    os.makedirs("models", exist_ok=True) # Make sure the folder exists
+    urllib.request.urlretrieve(LUNGS_MODEL_URL, LUNGS_MODEL_PATH)
+    print(" Model downloaded successfully!")
 try:
     lungs_model = tf.keras.models.load_model("models/densenet_lungs.h5")
     print(" Pulmonology Vision Model loaded successfully!")
@@ -126,4 +137,5 @@ async def predict_lungs_disease(file: UploadFile = File(...)):
 
 @app.get("/")
 def read_root():
+
     return {"message": "Virtual Hospital API is online. Multi-Modal capabilities active."}
