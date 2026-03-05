@@ -10,6 +10,8 @@ python-multipart
 pillow
 joblib
 streamlit
-tensorflow
+tensorflow==2.12.0
+keras==2.12.0
 requests
+
 
