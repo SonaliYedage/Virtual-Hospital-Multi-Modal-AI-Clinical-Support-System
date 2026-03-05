@@ -1,5 +1,6 @@
 import os
 import urllib.request
+import traceback
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel
 import pandas as pd
@@ -22,6 +23,22 @@ app = FastAPI(
 )
 
 # ==========================================
+# RENDER-SAFE ABSOLUTE PATHS
+# ==========================================
+# This dynamically finds the correct folder on Render so it never gets lost
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+# Absolute paths for all models
+CARDIO_MODEL_PATH = os.path.join(MODELS_DIR, "xgboost_cardio_70k.pkl")
+CARDIO_COLUMNS_PATH = os.path.join(MODELS_DIR, "cardio_columns.pkl")
+LUNGS_MODEL_PATH = os.path.join(MODELS_DIR, "densenet_lungs.h5")
+
+# Lungs Model Download URL (Since it's 27MB and in your Releases)
+LUNGS_MODEL_URL = "https://github.com/SonaliYedage/Virtual-Hospital-Multi-Modal-AI-Clinical-Support-System/releases/download/v1.0/densenet_lungs.h5"
+
+# ==========================================
 # LOAD MODELS ON STARTUP
 # ==========================================
 
@@ -29,37 +46,39 @@ cardio_model = None
 cardio_columns = None
 explainer = None
 lungs_model = None
+cardio_error_reason = "No error recorded."
 
 # -------- Load Cardiology Model --------
+# Since these are in your repo, we just load them directly using the absolute path!
 try:
-    cardio_model = joblib.load("models/xgboost_cardio_70k.pkl")
-    cardio_columns = joblib.load("models/cardio_columns.pkl")
-    explainer = shap.TreeExplainer(cardio_model)
-    print("Cardiology model loaded successfully")
+    if os.path.exists(CARDIO_MODEL_PATH) and os.path.exists(CARDIO_COLUMNS_PATH):
+        cardio_model = joblib.load(CARDIO_MODEL_PATH)
+        cardio_columns = joblib.load(CARDIO_COLUMNS_PATH)
+        explainer = shap.TreeExplainer(cardio_model)
+        print("✅ Cardiology model loaded successfully")
+    else:
+        cardio_error_reason = f"Files not found at {CARDIO_MODEL_PATH}"
+        print(f"❌ {cardio_error_reason}")
 except Exception as e:
-    print("Error loading cardiology model:", e)
+    # Capture exact error (e.g., XGBoost version mismatch) to send to Streamlit
+    cardio_error_reason = str(e)
+    print("❌ Error loading cardiology model:\n", traceback.format_exc())
 
 # -------- Load Lungs Vision Model --------
-LUNGS_MODEL_PATH = "models/densenet_lungs.h5"
-LUNGS_MODEL_URL = "https://github.com/SonaliYedage/Virtual-Hospital-Multi-Modal-AI-Clinical-Support-System/releases/download/v1.0/densenet_lungs.h5"
-
-# Download model if it doesn't exist
 if not os.path.exists(LUNGS_MODEL_PATH):
     print("Downloading lungs model... This might take a minute.")
-    os.makedirs("models", exist_ok=True)
     try:
         urllib.request.urlretrieve(LUNGS_MODEL_URL, LUNGS_MODEL_PATH)
-        print("Pulmonology Model downloaded successfully")
+        print("✅ Pulmonology Model downloaded successfully")
     except Exception as e:
-        print(f"Failed to download Pulmonology model: {e}")
+        print(f"❌ Failed to download Pulmonology model: {e}")
 
-# Load model
 try:
     if os.path.exists(LUNGS_MODEL_PATH):
         lungs_model = tf.keras.models.load_model(LUNGS_MODEL_PATH)
-        print("Pulmonology model loaded successfully")
+        print("✅ Pulmonology model loaded successfully")
 except Exception as e:
-    print("Error loading lungs model:", e)
+    print("❌ Error loading lungs model:\n", traceback.format_exc())
 
 # ==========================================
 # DATA MODEL FOR CARDIOLOGY INPUT
@@ -82,14 +101,14 @@ class PatientCardioData(BaseModel):
 # CARDIOLOGY PREDICTION API
 # ==========================================
 
-# NOTE: Removed 'async' here! CPU-heavy tasks like SHAP and Pandas should be synchronous in FastAPI.
 @app.post("/api/v1/predict/heart")
 def predict_heart_disease(patient: PatientCardioData):
-
+    
+    # Send the exact startup error to Streamlit if it failed to load
     if cardio_model is None or cardio_columns is None or explainer is None:
         raise HTTPException(
             status_code=500,
-            detail="Cardiology model not loaded correctly on the server."
+            detail=f"Cardiology model not loaded. EXACT REASON: {cardio_error_reason}"
         )
 
     try:
@@ -98,17 +117,19 @@ def predict_heart_disease(patient: PatientCardioData):
         input_data = pd.DataFrame([patient_dict])
         input_data = input_data[cardio_columns]
 
-        # Predictions
-        prediction_prob = cardio_model.predict_proba(input_data)[0][1]
+        # Predictions (wrapped in float/int to prevent JSON serialization crashes)
+        prediction_prob = float(cardio_model.predict_proba(input_data)[0][1])
         prediction_class = int(cardio_model.predict(input_data)[0])
 
-        # SHAP calculation (Fixed to avoid 'NoneType is not callable')
+        # SHAP calculation
         shap_values = explainer.shap_values(input_data)
         
         # Get base value safely
         base_value = explainer.expected_value
         if isinstance(base_value, (list, np.ndarray)):
-            base_value = base_value[0]
+            base_value = float(base_value[0])
+        else:
+            base_value = float(base_value)
 
         # Construct explanation object manually for the waterfall plot
         explanation = shap.Explanation(
@@ -144,8 +165,7 @@ def predict_heart_disease(patient: PatientCardioData):
         }
 
     except Exception as e:
-        # Print the exact error to Render backend logs before returning 500
-        print(f"Cardio Prediction Error: {str(e)}")
+        print(f"Cardio Prediction Error:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==========================================
@@ -170,8 +190,7 @@ async def predict_lungs_disease(file: UploadFile = File(...)):
         image_array = image_array / 255.0
         image_array = np.expand_dims(image_array, axis=0)
 
-        # FIXED: Calling the model directly instead of using .predict() inside an async function
-        # This prevents TensorFlow execution context loss which causes NoneType errors
+        # Direct model calling to prevent TensorFlow execution context loss
         prediction = lungs_model(image_array, training=False).numpy()
         prediction_prob = float(prediction[0][0])
 
@@ -191,7 +210,7 @@ async def predict_lungs_disease(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        print(f"Lungs Prediction Error: {str(e)}")
+        print(f"Lungs Prediction Error:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==========================================
