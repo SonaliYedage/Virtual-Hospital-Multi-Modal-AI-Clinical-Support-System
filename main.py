@@ -26,13 +26,17 @@ app = FastAPI(
 # ==========================================
 
 # Load Cardiology Model
+cardio_model = None
+cardio_columns = None
+explainer = None
+
 try:
     cardio_model = joblib.load("models/xgboost_cardio_70k.pkl")
     cardio_columns = joblib.load("models/cardio_columns.pkl")
     explainer = shap.TreeExplainer(cardio_model)
-    print(" Cardiology Model loaded successfully!")
+    print("Cardiology Model loaded successfully!")
 except Exception as e:
-    print(f" Cardiology Model not found: {e}")
+    print(f"Error loading cardiology model: {e}")
 
 
 # Load Pulmonology (Lungs) Vision Model
@@ -158,3 +162,4 @@ def read_root():
     return {
         "message": "Virtual Hospital API is online. Multi-Modal capabilities active."
     }
+
