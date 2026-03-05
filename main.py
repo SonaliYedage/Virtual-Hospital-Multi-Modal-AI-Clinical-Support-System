@@ -52,7 +52,7 @@ try:
         cardio_columns = joblib.load(CARDIO_COLUMNS_PATH)
         
         # ==================================================
-        # Prevent XGBoost Version Mismatch Crashes
+        #   Prevent XGBoost Version Mismatch Crashes
         # By manually injecting the missing attributes!
         # ==================================================
         if not hasattr(cardio_model, 'feature_types'):
@@ -127,7 +127,7 @@ def predict_heart_disease(patient: PatientCardioData):
         input_data = pd.DataFrame([patient_dict])
         input_data = input_data[cardio_columns]
 
-        # Convert Pandas DataFrame to raw Numpy Array. 
+        #  Convert Pandas DataFrame to raw Numpy Array. 
         # This completely bypasses XGBoost's strict column/type validation!
         input_array = input_data.values
 
