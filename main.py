@@ -25,17 +25,14 @@ app = FastAPI(
 # ==========================================
 # RENDER-SAFE ABSOLUTE PATHS
 # ==========================================
-# This dynamically finds the correct folder on Render so it never gets lost
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 os.makedirs(MODELS_DIR, exist_ok=True)
 
-# Absolute paths for all models
 CARDIO_MODEL_PATH = os.path.join(MODELS_DIR, "xgboost_cardio_70k.pkl")
 CARDIO_COLUMNS_PATH = os.path.join(MODELS_DIR, "cardio_columns.pkl")
 LUNGS_MODEL_PATH = os.path.join(MODELS_DIR, "densenet_lungs.h5")
 
-# Lungs Model Download URL (Since it's 27MB and in your Releases)
 LUNGS_MODEL_URL = "https://github.com/SonaliYedage/Virtual-Hospital-Multi-Modal-AI-Clinical-Support-System/releases/download/v1.0/densenet_lungs.h5"
 
 # ==========================================
@@ -49,36 +46,50 @@ lungs_model = None
 cardio_error_reason = "No error recorded."
 
 # -------- Load Cardiology Model --------
-# Since these are in your repo, we just load them directly using the absolute path!
 try:
     if os.path.exists(CARDIO_MODEL_PATH) and os.path.exists(CARDIO_COLUMNS_PATH):
         cardio_model = joblib.load(CARDIO_MODEL_PATH)
         cardio_columns = joblib.load(CARDIO_COLUMNS_PATH)
+        
+        # ==================================================
+        # Prevent XGBoost Version Mismatch Crashes
+        # By manually injecting the missing attributes!
+        # ==================================================
+        if not hasattr(cardio_model, 'feature_types'):
+            cardio_model.feature_types = None
+        if not hasattr(cardio_model, 'feature_names_in_'):
+            cardio_model.feature_names_in_ = None
+            
+        if hasattr(cardio_model, 'get_booster'):
+            booster = cardio_model.get_booster()
+            if not hasattr(booster, 'feature_types'):
+                booster.feature_types = None
+        # ==================================================
+
         explainer = shap.TreeExplainer(cardio_model)
-        print("✅ Cardiology model loaded successfully")
+        print(" Cardiology model loaded successfully")
     else:
         cardio_error_reason = f"Files not found at {CARDIO_MODEL_PATH}"
-        print(f"❌ {cardio_error_reason}")
+        print(f" {cardio_error_reason}")
 except Exception as e:
-    # Capture exact error (e.g., XGBoost version mismatch) to send to Streamlit
     cardio_error_reason = str(e)
-    print("❌ Error loading cardiology model:\n", traceback.format_exc())
+    print(" Error loading cardiology model:\n", traceback.format_exc())
 
 # -------- Load Lungs Vision Model --------
 if not os.path.exists(LUNGS_MODEL_PATH):
     print("Downloading lungs model... This might take a minute.")
     try:
         urllib.request.urlretrieve(LUNGS_MODEL_URL, LUNGS_MODEL_PATH)
-        print("✅ Pulmonology Model downloaded successfully")
+        print(" Pulmonology Model downloaded successfully")
     except Exception as e:
-        print(f"❌ Failed to download Pulmonology model: {e}")
+        print(f" Failed to download Pulmonology model: {e}")
 
 try:
     if os.path.exists(LUNGS_MODEL_PATH):
         lungs_model = tf.keras.models.load_model(LUNGS_MODEL_PATH)
-        print("✅ Pulmonology model loaded successfully")
+        print(" Pulmonology model loaded successfully")
 except Exception as e:
-    print("❌ Error loading lungs model:\n", traceback.format_exc())
+    print(" Error loading lungs model:\n", traceback.format_exc())
 
 # ==========================================
 # DATA MODEL FOR CARDIOLOGY INPUT
@@ -104,7 +115,6 @@ class PatientCardioData(BaseModel):
 @app.post("/api/v1/predict/heart")
 def predict_heart_disease(patient: PatientCardioData):
     
-    # Send the exact startup error to Streamlit if it failed to load
     if cardio_model is None or cardio_columns is None or explainer is None:
         raise HTTPException(
             status_code=500,
@@ -117,12 +127,16 @@ def predict_heart_disease(patient: PatientCardioData):
         input_data = pd.DataFrame([patient_dict])
         input_data = input_data[cardio_columns]
 
-        # Predictions (wrapped in float/int to prevent JSON serialization crashes)
-        prediction_prob = float(cardio_model.predict_proba(input_data)[0][1])
-        prediction_class = int(cardio_model.predict(input_data)[0])
+        # Convert Pandas DataFrame to raw Numpy Array. 
+        # This completely bypasses XGBoost's strict column/type validation!
+        input_array = input_data.values
 
-        # SHAP calculation
-        shap_values = explainer.shap_values(input_data)
+        # Predictions (using input_array)
+        prediction_prob = float(cardio_model.predict_proba(input_array)[0][1])
+        prediction_class = int(cardio_model.predict(input_array)[0])
+
+        # SHAP calculation (using input_array)
+        shap_values = explainer.shap_values(input_array)
         
         # Get base value safely
         base_value = explainer.expected_value
@@ -135,7 +149,7 @@ def predict_heart_disease(patient: PatientCardioData):
         explanation = shap.Explanation(
             values=shap_values[0], 
             base_values=base_value, 
-            data=input_data.iloc[0],
+            data=input_data.iloc[0],  # Keep the pandas row here for display labels
             feature_names=cardio_columns
         )
 
