@@ -2,9 +2,12 @@ import streamlit as st
 import requests
 import base64
 
-API_URL = "YOUR_RENDER_API_URL"
-
+# ==========================================
+# CONFIGURATION
+# ==========================================
 st.set_page_config(page_title="Virtual Hospital", page_icon="🏥", layout="wide")
+
+API_URL = "https://virtual-hospital-multi-modal-ai-clinical.onrender.com"
 
 st.sidebar.title(" Virtual Hospital")
 st.sidebar.write("Clinical Decision Support System")
@@ -17,13 +20,13 @@ department = st.sidebar.radio(
 # ==========================================
 # CARDIOLOGY UI
 # ==========================================
-
 if department == "Cardiology (Heart)":
 
     st.title(" Cardiology Department")
     st.subheader("AI Cardiovascular Risk Predictor")
     st.write(
-        "Enter patient vitals below to generate an AI risk assessment and SHAP explainability chart."
+        "Enter patient vitals below to generate an AI risk assessment "
+        "and SHAP explainability chart."
     )
 
     col1, col2, col3 = st.columns(3)
@@ -124,28 +127,30 @@ if department == "Cardiology (Heart)":
 
                         st.write("**AI Decision Explainability (SHAP Waterfall):**")
 
-                        image_bytes = base64.b64decode(result['explanation_image_base64'])
+                        image_bytes = base64.b64decode(
+                            result['explanation_image_base64']
+                        )
 
                         st.image(image_bytes, use_column_width=True)
 
                 else:
                     st.error(f"Backend Error: {response.text}")
 
-            except Exception as e:
+            except Exception:
                 st.error(" Connection Failed: Cannot reach the FastAPI backend.")
 
 
 # ==========================================
 # PULMONOLOGY UI
 # ==========================================
-
 elif department == "Pulmonology (Lungs)":
 
     st.title(" Pulmonology Department")
     st.subheader("Deep Learning Chest X-Ray Analysis")
 
     st.write(
-        "Upload a patient's Chest X-Ray (JPEG/PNG) to scan for Pneumonia using our DenseNet121 architecture."
+        "Upload a patient's Chest X-Ray (JPEG/PNG) to scan for Pneumonia "
+        "using our DenseNet121 architecture."
     )
 
     uploaded_file = st.file_uploader(
@@ -194,5 +199,5 @@ elif department == "Pulmonology (Lungs)":
                     else:
                         st.error(f"Backend Error: {response.text}")
 
-                except Exception as e:
+                except Exception:
                     st.error(" Connection Failed: Cannot reach the FastAPI backend.")
