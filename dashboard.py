@@ -7,7 +7,7 @@ import base64
 # ==========================================
 st.set_page_config(page_title="Virtual Hospital", page_icon="🏥", layout="wide")
 
-API_URL = "https://virtual-hospital-multi-modal-ai-clinical.onrender.com"
+API_URL = "https://virtual-hospital-multi-modal-ai-clinical-16z8.onrender.com"
 
 st.sidebar.title(" Virtual Hospital")
 st.sidebar.write("Clinical Decision Support System")
