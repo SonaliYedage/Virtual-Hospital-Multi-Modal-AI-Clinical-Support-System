@@ -21,8 +21,8 @@ An end-to-end, full-stack medical AI platform designed to assist healthcare prof
 *   **Frontend:** Streamlit, Requests, Base64 encoding
 
 ## 🌐 Live Demo
-*   **Frontend (Streamlit Cloud):** [Link coming soon!]
-*   **Backend API (Render):** [Link coming soon!]
+*   **Frontend (Streamlit Cloud):** [https://virtual-hospital-multi-modal-ai-clinical-s04f.onrender.com/]
+*   **Backend API (Render):** [https://virtual-hospital-multi-modal-ai-clinical-16z8.onrender.com/docs]
 
 ## 💻 Run Locally
 1. Clone the repository: `git clone https://github.com/SonaliYedage/Virtual-Hospital-Multi-Modal-AI-Clinical-Support-System`
